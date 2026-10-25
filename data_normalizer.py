@@ -123,6 +123,13 @@ def normalize_single_record(
     Normalizes a dictionary representing a row from NSE or BSE into NormalizedDeal.
     Returns (record, warning_list).
     """
+        # Normalize CSV header keys before accessing source fields.
+    # NSE files may contain headers like "Date " and "Symbol ".
+    row = {
+        str(key).replace("\ufeff", "").strip(): value
+        for key, value in row.items()
+        if key is not None
+    }
     warnings = []
     
     # 1. Date resolution
