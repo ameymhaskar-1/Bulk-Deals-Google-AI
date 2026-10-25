@@ -88,22 +88,92 @@ if latest_logs:
     st.sidebar.caption(f"Last Ingestion: {log['timestamp'][:19]} ({log['status']})")
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("Manual Data Ingestion")
-uploaded_file = st.sidebar.file_uploader("Upload Official Exchange CSV", type=["csv"])
-if uploaded_file is not None:
-    content = uploaded_file.getvalue().decode("utf-8-sig", errors="replace")
-    cl = NSEClient()
-    recs, msg = cl.parse_nse_csv(content, "BULK", uploaded_file.name)
-    if not recs:
-        bse = BSEClient()
-        recs, msg = bse.parse_bse_csv(content, "BULK", uploaded_file.name)
-    if recs:
-        ins, dup, errs = db.insert_deals(recs)
-        st.sidebar.success(f"Ingested {ins} new records ({dup} duplicates skipped).")
-        db.log_retrieval(f"UPLOAD_{uploaded_file.name}", "SUCCESS", ins, f"Duplicates: {dup}")
-    else:
-        st.sidebar.error(f"Failed to parse file: {msg}")
 
+st.sidebar.subheader("Manual Data Ingestion")
+
+uploaded_file = st.sidebar.file_uploader(
+    "Upload Official Exchange CSV",
+    type=["csv"],
+    key="deal_upload",
+)
+
+if uploaded_file is not None:
+    filename = uploaded_file.name.lower()
+
+    # Infer exchange and deal type from the filename.
+    if "nse" in filename or "bulk-deals" in filename or "block-deals" in filename:
+        exchange = "NSE"
+    elif "bse" in filename:
+        exchange = "BSE"
+    else:
+        exchange = st.sidebar.selectbox(
+            "Select exchange",
+            ["NSE", "BSE"],
+            key="upload_exchange",
+        )
+
+    if "block" in filename:
+        deal_type = "BLOCK"
+    elif "bulk" in filename:
+        deal_type = "BULK"
+    else:
+        deal_type = st.sidebar.selectbox(
+            "Select deal type",
+            ["BULK", "BLOCK"],
+            key="upload_deal_type",
+        )
+
+    st.sidebar.caption(
+        f"Detected source: {exchange} | Deal type: {deal_type}"
+    )
+
+    if st.sidebar.button("Import deals", type="primary"):
+        content = uploaded_file.getvalue().decode(
+            "utf-8-sig", errors="replace"
+        )
+
+        try:
+            if exchange == "NSE":
+                client = NSEClient()
+                recs, msg = client.parse_nse_csv(
+                    content, deal_type, uploaded_file.name
+                )
+            else:
+                client = BSEClient()
+                recs, msg = client.parse_bse_csv(
+                    content, deal_type, uploaded_file.name
+                )
+
+            if recs:
+                ins, dup, errs = db.insert_deals(recs)
+
+                st.sidebar.success(
+                    f"{exchange} {deal_type}: "
+                    f"{len(recs):,} parsed; "
+                    f"{ins:,} inserted; "
+                    f"{dup:,} duplicates."
+                )
+
+                if errs:
+                    st.sidebar.warning(
+                        f"Database reported {len(errs)} errors."
+                    )
+
+                db.log_retrieval(
+                    f"UPLOAD_{exchange}_{deal_type}_{uploaded_file.name}",
+                    "SUCCESS",
+                    ins,
+                    f"Parsed: {len(recs)}; duplicates: {dup}",
+                )
+            else:
+                st.sidebar.error(
+                    f"{exchange} parser failed: {msg}"
+                )
+
+        except Exception as exc:
+            st.sidebar.error(
+                f"Import failed: {type(exc).__name__}: {exc}"
+            )
 # Landing Page / Router Overview
 st.title("DealScope India — Disclosures Intelligence")
 st.markdown("""
