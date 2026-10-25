@@ -1,0 +1,6 @@
+{
+  "name": "DealScope India — NSE & BSE Bulk/Block Deals Intelligence",
+  "description": "Institutional research and monitoring platform for National Stock Exchange (NSE) and BSE bulk and block deals disclosures, market intelligence, client tracking, and price reaction analysis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
